@@ -80,14 +80,10 @@ int getSudoku(unit sudoku[][9], unit* unsolved[], int* n_unsolved, int argc, cha
 void printSudoku(unit sudoku[][9]) {
 	for (int y = 0; y < 9; y++) {
 		for (int x = 0; x < 9; x++) {
-			int d = sudoku[x][y].value;
-			if (d >= 1 && d <= 9) {
-				printf("%d ", d);
-			}
-			else {
-				d = sudoku[x][y].test_value;
-				d >= 1 && d <= 9 ? printf("%d ", d) : printf(". ");
-			}
+			unit item = sudoku[x][y];
+			int val = item.value + item.test_value;
+			if (val > 0) printf("%d ", val);
+			else printf(". ");
 		}
 		printf("\n");
 	}
