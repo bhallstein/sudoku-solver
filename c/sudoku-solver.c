@@ -1,185 +1,155 @@
-/*
-	sudokusolver - command line version taking arguments
-
-	Takes input from 81 arguments to main, passed from the environment.
-	These arguments should be single numbers, using '.' to denote an unsolved location.
-	The order of arguments is across then down.
-
-	On success, it prints the solved sudoku.
-	On failure it outputs:
-		 0		seemingly valid input, but could not solve
-*/
+// sudoko solver - command line version taking input as 81 ARGV arguments.
+//
+// Arguments should be single numbers, using '.' to denote an unsolved location.
+// The order of arguments is across then down.
+//
+// On success, prints the solved sudoku.
+// On failure, prints error message.
 
 #include <stdio.h>
-#include <stdlib.h>
 
-struct unit {
-	int value;
-	int testValue;
-};
+typedef struct unit {
+	int value, test_value;
+	int x, y;
+} unit;
 
-void getSudoku(struct unit *p_sudoku[][9], int argc, char *argv[]);
-void getUnsolved(struct unit *p_sudoku[][9], struct unit *unsolved[]);
-void printSudoku(struct unit *p_sudoku[][9]);
-int  is_inconsistent(int i, struct unit *p_sudoku[][9]);
-int  solve(int x, int n_unsolved, struct unit *unsolved[], struct unit *p_sudoku[][9]);
-void solved(struct unit *p_sudoku[][9]);
+
+int getSudoku(unit sudoku[][9], unit* unsolved[], int* n_unsolved, int argc, char *argv[]);
+void printSudoku(unit [][9]);
+int isConsistent(int n, int x, int y, unit[][9]);
+int solve(int x, int n_unsolved, unit* unsolved[], unit sudoku[][9]);
+
 
 int main(int argc, char *argv[]) {
-	int n_unsolved=0, d, e, x, y;
-	struct unit sudoku[9][9];		/* Make 9x9 array of 'unit's */
-	struct unit *p_sudoku[9][9];	/* Make 9x9 array of pointers to units */
+	unit sudoku[9][9];
+	unit* unsolved[81];
+	int n_unsolved;
 
-	// Point each p_sudoku at appropriate sudoku unit
-	for (y=0; y<9; y++)
-		for (x=0; x<9; x++)
-			p_sudoku[x][y] = &sudoku[x][y];
-
-	// Set the sudoku units' initial values
-	// (and set all testValues to 0)
-	printf("Enter sudoku, leaving spaces where unsolved:\n");
-	getSudoku(p_sudoku, argc, argv);
-
-	// Count the number of unsolved units
-	for (y=0; y<9; y++) {
-		for (x=0; x<9; x++) {
-			d = p_sudoku[x][y]->value;
-			if (!(d >= 1 && d <= 9))
-				n_unsolved++;
-		}
+	int result = getSudoku(sudoku, unsolved, &n_unsolved, argc, argv);
+	if (!result) {
+		return 1;
 	}
-	// Create array of pointers to the unsolved units
-	struct unit *unsolved[n_unsolved];
-	getUnsolved(p_sudoku, unsolved);
-	// Print out the sudoku as entered
-	printSudoku(p_sudoku);
-	// Begin solving the sudoku
-	e = solve(0, n_unsolved, unsolved, p_sudoku);
 
-	if (e==0)
+	printSudoku(sudoku);
+	int e = solve(0, n_unsolved, unsolved, sudoku);
+	if (!e) {
 		printf("Sudoku could not be solved.\n");
-}
-
-
-
-void getSudoku(struct unit *p_sudoku[][9], int argc, char *argv[]) {
-	int x, y, n=0;
-
-	// Get solved values and set unsolveds' values to 0
-	for (y=0; y<9; y++) {
-		for (x=0; x<9; x++) {
-			n++;
-			if (argv[n][0] >= '1' && argv[n][0] <= '9')
-				p_sudoku[x][y]->value = argv[n][0]-'0';
-			else
-				p_sudoku[x][y]->value = 0;
-		}
+		return 1;
 	}
 
-	// Set all testValues to 0
-	for (y=0; y<9; y++)
-		for (x=0; x<9; x++)
-			p_sudoku[x][y]->testValue = 0;
+	printf("Sudoku solved!\n");
+	printSudoku(sudoku);
+	return 0;
 }
 
-void getUnsolved(struct unit *p_sudoku[][9], struct unit *unsolved[]) {
-	int i=0, x, y, d;
 
-	for (y=0; y<9; y++) {
-		for (x=0; x<9; x++) {
-			d = p_sudoku[x][y]->value;
-			if (!(d >= 1 && d <= 9)) {
-				unsolved[i] = p_sudoku[x][y];
-				i++;
+int getSudoku(unit sudoku[][9], unit* unsolved[], int* n_unsolved, int argc, char *argv[]) {
+	if (argc != 82) {
+		printf("Wrong number of arguments\n");
+		return 0;
+	}
+
+	*n_unsolved = 0;
+
+	for (int y=0; y < 9; y++) {
+		for (int x=0; x < 9; x++) {
+			int chr = argv[y*9 + x + 1][0];
+			int is_int = chr >= '1' && chr <= '9';
+			if (!is_int && chr != '.') {
+				printf("Invalid argument. Arguments must be 1-9 or '.' for an empty space.\n");
+				return 0;
+			}
+
+			unit* item = &sudoku[x][y];
+			item->value = item->test_value = 0;
+			item->x = x, item->y = y;
+
+			if (is_int) {
+				item->value = chr - '0';
+			}
+			else {
+				unsolved[(*n_unsolved)++] = item;
 			}
 		}
 	}
+
+	return 1;
 }
 
-void printSudoku(struct unit *p_sudoku[][9]) {
-	int x, y, d;
 
-	for (y=0; y<9; y++) {
-			for (x=0; x<9; x++) {
-				d = p_sudoku[x][y]->value;
-				if (d>0 && d<10)
-					printf("%d ", d);
-				else {
-					d = p_sudoku[x][y]->testValue;
-					if (d>0 && d<10)
-						printf("%d ", d);
-					else
-						printf(". ");
+void printSudoku(unit sudoku[][9]) {
+	for (int y = 0; y < 9; y++) {
+		for (int x = 0; x < 9; x++) {
+			int d = sudoku[x][y].value;
+			if (d >= 1 && d <= 9) {
+				printf("%d ", d);
+			}
+			else {
+				d = sudoku[x][y].test_value;
+				d >= 1 && d <= 9 ? printf("%d ", d) : printf(". ");
+			}
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+
+
+int isConsistent(int n, int at_x, int at_y, unit sudoku[][9]) {
+	// Check row
+	for (int x=0, count=0; x < 9; x++) {
+		unit item = sudoku[x][at_y];
+		if (item.value + item.test_value == n) {
+			if (++count > 1) {
+				return 0;
+			}
+		}
+	}
+
+	// Check column
+	for (int y=0, count=0; y<9; y++) {
+		unit item = sudoku[at_x][y];
+		if (item.value + item.test_value == n) {
+			if (++count > 1) {
+				return 0;
+			}
+		}
+	}
+
+	// Check sector
+	int sector_x = at_x / 3 * 3;
+	int sector_y = at_y / 3 * 3;
+	for (int y=0, count=0; y < 3; y++) {
+		for (int x=0; x < 3; x++) {
+			unit item = sudoku[x + sector_x][y + sector_y];
+			if (item.value + item.test_value == n) {
+				if (++count > 1) {
+					return 0;
 				}
 			}
-			printf("\n");
+		}
 	}
+
+	return 1;
 }
 
-int is_inconsistent(int i, struct unit *p_sudoku[][9]) {
-	int x, y, a, b, count;
 
-	// Check rows
-	for (y=0; y<9; y++) {
-		count=0;
-		for (x=0; x<9; x++) {
-			if (p_sudoku[x][y]->value == i || p_sudoku[x][y]->testValue == i)
-				count++;
-		}
-		if (count > 1)
-			return 1;
-	}
+int solve(int i_unsolved, int n_unsolved, unit* unsolved[], unit sudoku[][9]) {
+	for (int i=1; i <= 9; i++) {
+		unit* item = unsolved[i_unsolved];
+		item->test_value = i;
 
-	// Check columns
-	for (x=0; x<9; x++) {
-		count = 0;
-		for (y=0; y<9; y++) {
-			if (p_sudoku[x][y]->value == i || p_sudoku[x][y]->testValue == i)
-				count++;
-		}
-		if (count > 1)
-			return 1;
-	}
-
-	// Check sectors
-	for (y=0; y<7; y+=3) {
-		for (x=0; x<7; x+=3) {
-			count=0;
-			for (b=0; b<3; b++) {
-				for (a=0; a<3; a++) {
-					if (p_sudoku[x+a][y+b]->value == i || p_sudoku[x+a][y+b]->testValue == i)
-						count++;
-				}
-			}
-			if (count > 1)
+		if (isConsistent(i, item->x, item->y, sudoku)) {
+			if (i_unsolved == n_unsolved - 1) {
 				return 1;
+			}
+
+			int solved = solve(i_unsolved + 1, n_unsolved, unsolved, sudoku);
+			if (solved) {
+				return 1;
+			}
 		}
-	}
-
-	return 0;
-}
-
-int solve(int x, int n_unsolved, struct unit *unsolved[], struct unit *p_sudoku[][9]) {
-	int i;
-
-	for (i=1; i<=9; i++) {
-		unsolved[x]->testValue = i;
-		if (is_inconsistent(unsolved[x]->testValue, p_sudoku) == 0) {
-			// If not inconsistent, & there is another unsolved unit, solve next.
-			if (x<n_unsolved-1)
-				solve(x+1, n_unsolved, unsolved, p_sudoku);
-			// If consistent, & there are no more unsolved units, we're done!
-			else
-				solved(p_sudoku);
-		}
-		unsolved[x]->testValue = 0;
+		item->test_value = 0;
 	}
 	return 0;
-}
-
-/* The solved() function is run when the sudoku has been solved */
-void solved(struct unit *p_sudoku[][9]) {
-	printf("\nSudoku solved!\n");
-	printSudoku(p_sudoku);
-	exit(0);
 }
